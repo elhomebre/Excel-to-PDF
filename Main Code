@@ -1,5 +1,5 @@
 //Jonah Black 3/14/2025
-//Take excel sheet data and fill into google doc to autofill PDF's used this for a church project to allow something like a google form to autofill PDFs
+//Take google sheet data and fill into google doc to autofill PDF's used this for a church project to allow something like a google form to autofill PDFs
 //suggestion for PDF's use a screenshot and then set it to behind text, and put your Fillable areas for example {name} ontop of the document then this flow will paste the data ontop of that PDF. If you find this i hope it saves you money haha, the autofilling PDF's normally need adobe acrobat (or similar tool) to be able to create the fillable pdfs then another software ontop of that to then create seprate PDF documents
 //Credit: https://www.youtube.com/watch?v=r9uU_KwGgzQ took portions from this video and adapted to allow images/signatures into the document and allow it to run in batches. I suggest watching that video to setup your google drive with the correct folders then running this code, feel free to use however you would like as this was modified from his code! (also donate to his patron!)
 function creatBulkPDFs() {
