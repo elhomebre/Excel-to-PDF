@@ -1,0 +1,89 @@
+//Jonah Black 3/14/2025
+//Take excel sheet data and fill into google doc to autofill PDF's used this for a church project to allow something like a google form to autofill PDFs
+//suggestion for PDF's use a screenshot and then set it to behind text, and put your Fillable areas for example {name} ontop of the document then this flow will paste the data ontop of that PDF. If you find this i hope it saves you money haha, the autofilling PDF's normally need adobe acrobat (or similar tool) to be able to create the fillable pdfs then another software ontop of that to then create seprate PDF documents
+//Credit: https://www.youtube.com/watch?v=r9uU_KwGgzQ took portions from this video and adapted to allow images/signatures into the document and allow it to run in batches. I suggest watching that video to setup your google drive with the correct folders then running this code, feel free to use however you would like as this was modified from his code! (also donate to his patron!)
+function creatBulkPDFs() {
+  const docFile = DriveApp.getFileById("1j1WqvSNtkrdUoDaMbT4WgivUNPc6SxkDITjD0bTRexg");
+  const tempFolder = DriveApp.getFolderById("1YMEtVeoEcsdPM0NDMXRIiJHXutGZokGJ");
+  const pdfFolder = DriveApp.getFolderById("19ry6kdC6MjGdpWvSerLK7UupFot2QNIQ");
+  const currentSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("people"); 
+
+  const BATCH_SIZE = 25; // Number of records per execution
+  let lastProcessedRow = PropertiesService.getScriptProperties().getProperty("lastProcessedRow") || 2;
+  lastProcessedRow = parseInt(lastProcessedRow);
+
+  const data = currentSheet.getRange(lastProcessedRow, 1, BATCH_SIZE, 11).getValues();
+  const signatureFormulas = currentSheet.getRange(lastProcessedRow, 11, BATCH_SIZE, 1).getFormulas();
+
+  if (data.length === 0 || data[0][0] === "") {
+    PropertiesService.getScriptProperties().deleteProperty("lastProcessedRow"); // Reset when done
+    return;
+  }
+
+  data.forEach((row, index) => {
+    let signatureFormula = signatureFormulas[index][0];
+    let signatureUrl = "";
+    if (signatureFormula && signatureFormula.startsWith('=IMAGE("')) {
+      signatureUrl = signatureFormula.match(/=IMAGE\("([^"]+)"/)?.[1] || "";
+    }
+
+    CreatePDF(
+      row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], 
+      signatureUrl || row[10], row[0], docFile, tempFolder, pdfFolder, row[1] + "FoodDrive"
+    );
+  });
+
+  // Save the next row index for the next execution
+  PropertiesService.getScriptProperties().setProperty("lastProcessedRow", lastProcessedRow + BATCH_SIZE);
+
+  // Schedule next execution if there are more rows
+  ScriptApp.newTrigger("creatBulkPDFs")
+    .timeBased()
+    .after(10000) // Run after 10 seconds
+    .create();
+}
+
+function CreatePDF(name, address, city, zip, phone, old, middle, young, totalPeople, signature, date, docFile, tempFolder, pdfFolder, pdfName) {
+  const tempFile = docFile.makeCopy(tempFolder);
+  const tempDocFile = DocumentApp.openById(tempFile.getId());
+  const body = tempDocFile.getBody(); 
+
+  // Replace text placeholders with provided data
+  body.replaceText("{name}", name);
+  body.replaceText("{address}", address);
+  body.replaceText("{city}", city);
+  body.replaceText("{zip}", zip);
+  body.replaceText("{phone}", phone);
+  body.replaceText("{old}", old);
+  body.replaceText("{middle}", middle);
+  body.replaceText("{young}", young);
+  body.replaceText("{Total}", totalPeople);
+  body.replaceText("{date}", date);
+
+  // Insert the signature image at the {signature} placeholder location
+  if (signature.startsWith("http")) {
+    try {
+      const imgBlob = UrlFetchApp.fetch(signature).getBlob();
+      const signatureFound = body.findText("{signature}");
+      if (signatureFound) {
+        const textElement = signatureFound.getElement();
+        if (textElement.editAsText) {
+          const text = textElement.asText();
+          text.replaceText("{signature}", ""); // Remove placeholder text
+        }
+        const image = textElement.getParent().asParagraph().insertInlineImage(0, imgBlob);
+        image.setWidth(image.getWidth() / 3);
+        image.setHeight(image.getHeight() / 3);
+      }
+    } catch (e) {
+      Logger.log("Error fetching signature image: " + e.toString());
+    }
+  } else {
+    body.replaceText("{signature}", signature);
+  }
+
+  tempDocFile.saveAndClose();
+  const pdfContentBlob = tempFile.getAs(MimeType.PDF);
+  pdfFolder.createFile(pdfContentBlob).setName(pdfName);
+  tempFolder.removeFile(tempFile);
+}
